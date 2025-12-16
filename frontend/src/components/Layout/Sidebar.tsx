@@ -213,7 +213,7 @@ export default function Sidebar({ onConversationSelect }: SidebarProps) {
                     {conv.title}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {formatDistanceToNow(new Date(conv.updated_at), {
+                    {formatDistanceToNow(new Date(conv.updated_at.endsWith('Z') ? conv.updated_at : conv.updated_at + 'Z'), {
                       addSuffix: true,
                       locale: zhCN,
                     })}
