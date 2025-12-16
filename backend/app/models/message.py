@@ -1,11 +1,15 @@
 """
 Message model
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 class Message(Base):
@@ -17,7 +21,7 @@ class Message(Base):
     content = Column(Text, nullable=False)
     audio_path = Column(String(500), nullable=True)  # Path to audio file if voice message
     token_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")

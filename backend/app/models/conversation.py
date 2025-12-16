@@ -1,11 +1,15 @@
 """
 Conversation and ConversationGroup models
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 class ConversationGroup(Base):
@@ -15,7 +19,7 @@ class ConversationGroup(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     order_index = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="groups")
@@ -33,8 +37,8 @@ class Conversation(Base):
     summary = Column(Text, nullable=True)  # Final summary of conversation
     context_summary = Column(Text, nullable=True)  # Compressed context for continuation
     is_archived = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="conversations")
