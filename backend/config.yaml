@@ -1,0 +1,52 @@
+server:
+  host: "0.0.0.0"
+  port: 8001
+  cors_origins: 
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
+
+database:
+  url: "sqlite+aiosqlite:///./data/livetalk.db"
+
+auth:
+  secret_key: "livetalk-secret-key-change-in-production-2024"
+  algorithm: "HS256"
+  access_token_expire_minutes: 1440  # 24小时
+
+llm:
+  main_model:
+    base_url: "http://localhost:11234/v1"
+    api_key: "lm-studio"
+    model: "qwen3-0.6b"
+    max_tokens: 2048
+    temperature: 0.7
+  summary_model:
+    base_url: "http://localhost:11234/v1"
+    api_key: "lm-studio"
+    model: "qwen3-0.6b"
+    max_tokens: 1024
+    temperature: 0.3
+
+context:
+  max_tokens: 4096
+  compression_threshold: 0.8
+  summary_prompt: |
+    请总结以下对话的要点，保留关键信息和重要细节，输出简洁的摘要（不超过500字）：
+
+  tags_prompt: |
+    请为以下对话生成3-5个标签，用逗号分隔，标签应简洁概括对话主题：
+
+stt:
+  model_size: "base"
+  language: "zh"
+  device: "auto"  # auto, cpu, cuda
+
+tts:
+  model: "zh_CN-huayan-medium"
+  speaker_id: 0
+  length_scale: 1.0  # 语速，1.0为正常
+
+voice:
+  mode: "push_to_talk"  # push_to_talk / vad
+  vad_threshold: 0.5
+  sample_rate: 16000
