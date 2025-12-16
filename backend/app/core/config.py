@@ -52,6 +52,8 @@ class ContextConfig(BaseModel):
 
 
 class STTConfig(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    
     model_size: str = "base"
     language: str = "zh"
     device: str = "auto"
