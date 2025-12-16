@@ -72,14 +72,17 @@ export default function VoiceRecorder({
         try {
           // Create blob from chunks
           const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          console.log('Recording stopped, blob size:', audioBlob.size);
           
           // Convert to WAV for better compatibility with Whisper
           const wavBlob = await convertToWav(audioBlob);
+          console.log('WAV blob created, size:', wavBlob.size);
 
           // Send to server for STT
           const formData = new FormData();
           formData.append('audio', wavBlob, 'recording.wav');
 
+          console.log('Sending audio to STT API...');
           const response = await fetch('/api/voice/stt', {
             method: 'POST',
             headers: {
@@ -88,11 +91,16 @@ export default function VoiceRecorder({
             body: formData,
           });
 
+          console.log('STT response status:', response.status);
+          
           if (!response.ok) {
+            const errorText = await response.text();
+            console.error('STT error response:', errorText);
             throw new Error('语音识别失败');
           }
 
           const data = await response.json();
+          console.log('STT result:', data);
           
           if (data.text && data.text.trim()) {
             onTranscription(data.text.trim());
@@ -101,7 +109,7 @@ export default function VoiceRecorder({
           }
         } catch (err) {
           console.error('STT error:', err);
-          setError('语音识别失败');
+          setError(err instanceof Error ? err.message : '语音识别失败');
         } finally {
           setStatus('idle');
         }
@@ -203,26 +211,55 @@ export default function VoiceRecorder({
 
 // Convert audio blob to WAV format
 async function convertToWav(blob: Blob): Promise<Blob> {
-  const audioContext = new AudioContext({ sampleRate: 16000 });
+  console.log('Converting audio blob to WAV, size:', blob.size, 'type:', blob.type);
+  
+  // Create AudioContext with standard sample rate
+  const audioContext = new AudioContext();
   const arrayBuffer = await blob.arrayBuffer();
   
   try {
+    console.log('Decoding audio data...');
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const wavBuffer = audioBufferToWav(audioBuffer);
+    console.log('Audio decoded, duration:', audioBuffer.duration, 'sampleRate:', audioBuffer.sampleRate);
+    
+    const wavBuffer = audioBufferToWav(audioBuffer, 16000);
+    console.log('WAV buffer created, size:', wavBuffer.byteLength);
+    
     return new Blob([wavBuffer], { type: 'audio/wav' });
+  } catch (err) {
+    console.error('Failed to decode audio:', err);
+    throw new Error('音频解码失败');
   } finally {
     await audioContext.close();
   }
 }
 
-// Convert AudioBuffer to WAV format
-function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+// Convert AudioBuffer to WAV format with resampling
+function audioBufferToWav(buffer: AudioBuffer, targetSampleRate: number = 16000): ArrayBuffer {
   const numChannels = 1;
-  const sampleRate = buffer.sampleRate;
   const format = 1; // PCM
   const bitDepth = 16;
+  
+  // Get audio data and resample if needed
+  let data = buffer.getChannelData(0);
+  
+  // Resample to target sample rate
+  if (buffer.sampleRate !== targetSampleRate) {
+    const ratio = targetSampleRate / buffer.sampleRate;
+    const newLength = Math.round(data.length * ratio);
+    const resampled = new Float32Array(newLength);
+    
+    for (let i = 0; i < newLength; i++) {
+      const srcIndex = i / ratio;
+      const srcIndexFloor = Math.floor(srcIndex);
+      const srcIndexCeil = Math.min(srcIndexFloor + 1, data.length - 1);
+      const fraction = srcIndex - srcIndexFloor;
+      
+      resampled[i] = data[srcIndexFloor] * (1 - fraction) + data[srcIndexCeil] * fraction;
+    }
+    data = resampled;
+  }
 
-  const data = buffer.getChannelData(0);
   const dataLength = data.length * (bitDepth / 8);
   const headerLength = 44;
   const totalLength = headerLength + dataLength;
@@ -238,8 +275,8 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
   view.setUint32(16, 16, true);
   view.setUint16(20, format, true);
   view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+  view.setUint32(24, targetSampleRate, true);
+  view.setUint32(28, targetSampleRate * numChannels * (bitDepth / 8), true);
   view.setUint16(32, numChannels * (bitDepth / 8), true);
   view.setUint16(34, bitDepth, true);
   writeString(view, 36, 'data');
