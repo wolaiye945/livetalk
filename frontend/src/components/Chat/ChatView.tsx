@@ -48,8 +48,8 @@ export default function ChatView() {
     const token = authService.getToken();
     if (!token) return;
 
-    // Connect directly to backend WebSocket (bypass Vite proxy for WS)
-    const wsUrl = `ws://localhost:8001/api/chat/ws/${conversationId}?token=${token}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/api/chat/ws/${conversationId}?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

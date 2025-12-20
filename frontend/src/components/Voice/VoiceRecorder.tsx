@@ -37,12 +37,7 @@ export default function VoiceRecorder({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        audio: true,
       });
 
       streamRef.current = stream;

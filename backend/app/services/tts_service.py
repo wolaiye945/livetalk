@@ -65,6 +65,7 @@ class TTSService:
             # Try using piper-tts Python package first
             try:
                 from piper import PiperVoice
+                from piper.config import SynthesisConfig
                 
                 model_path = MODELS_DIR / f"{self.model}.onnx"
                 config_path = MODELS_DIR / f"{self.model}.onnx.json"
@@ -74,10 +75,16 @@ class TTSService:
                 
                 voice = PiperVoice.load(str(model_path), str(config_path))
                 
+                # Create synthesis config
+                config = SynthesisConfig(
+                    speaker_id=self.speaker_id,
+                    length_scale=self.length_scale
+                )
+                
                 # Synthesize to WAV
                 audio_buffer = io.BytesIO()
-                with wave.open(audio_buffer, 'wb') as wav_file:
-                    voice.synthesize(text, wav_file, speaker_id=self.speaker_id)
+                with wave.open(audio_buffer, "wb") as wav_file:
+                    voice.synthesize_wav(text, wav_file, syn_config=config)
                 
                 return audio_buffer.getvalue()
             

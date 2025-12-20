@@ -105,7 +105,33 @@ class STTService:
     def _parse_wav(self, audio_data: bytes) -> Optional[np.ndarray]:
         """Parse WAV data into numpy array"""
         try:
-            # Try standard wave module first
+            # Try pydub first for better compatibility
+            try:
+                from pydub import AudioSegment
+                
+                with io.BytesIO(audio_data) as audio_file:
+                    audio = AudioSegment.from_file(audio_file)
+                    
+                    # Convert to mono and 16kHz
+                    audio = audio.set_channels(1).set_frame_rate(16000)
+                    
+                    # Convert to float32 numpy array
+                    samples = np.array(audio.get_array_of_samples())
+                    
+                    if audio.sample_width == 2:  # 16-bit
+                        audio_array = samples.astype(np.float32) / 32768.0
+                    elif audio.sample_width == 4:  # 32-bit
+                        audio_array = samples.astype(np.float32) / 2147483648.0
+                    else:
+                        audio_array = samples.astype(np.float32) / (2**(8 * audio.sample_width - 1))
+                        
+                    return audio_array.astype(np.float32)
+            except ImportError:
+                logger.warning("pydub not installed, falling back to standard wave module")
+            except Exception as e:
+                logger.warning(f"pydub failed to parse audio: {e}")
+
+            # Fallback to standard wave module
             import wave
             
             with io.BytesIO(audio_data) as audio_file:

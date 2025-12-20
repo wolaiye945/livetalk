@@ -78,7 +78,7 @@ class LLMService:
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None
     ) -> AsyncGenerator[str, None]:
-        """Send streaming chat completion request to main model"""
+        """Send streaming chat completion request to main model, filtering out <think> tags"""
         stream = await self.main_client.chat.completions.create(
             model=settings.llm.main_model.model,
             messages=messages,
@@ -88,9 +88,46 @@ class LLMService:
             extra_body={"chat_template_kwargs": {"enable_thinking": False}}
         )
         
+        buffer = ""
+        in_think_block = False
+        
         async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            if not chunk.choices[0].delta.content:
+                continue
+            
+            buffer += chunk.choices[0].delta.content
+            
+            while True:
+                if not in_think_block:
+                    think_start = buffer.find('<think>')
+                    if think_start == -1:
+                        # No <think> found, but keep last 7 chars in case tag is split
+                        safe_len = max(0, len(buffer) - 7)
+                        if safe_len > 0:
+                            output = buffer[:safe_len]
+                            buffer = buffer[safe_len:]
+                            yield output
+                        break
+                    else:
+                        # Yield content before <think>
+                        if think_start > 0:
+                            yield buffer[:think_start]
+                        buffer = buffer[think_start:]
+                        in_think_block = True
+                
+                if in_think_block:
+                    think_end = buffer.find('</think>')
+                    if think_end == -1:
+                        # Still in think block, wait for more
+                        break
+                    else:
+                        # End of think block, skip it
+                        buffer = buffer[think_end + 8:]
+                        in_think_block = False
+        
+        # Flush remaining buffer (if not in think block)
+        if buffer and not in_think_block:
+            yield buffer
     
     async def summarize(self, text: str, prompt: Optional[str] = None) -> str:
         """Summarize text using summary model"""

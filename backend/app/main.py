@@ -2,6 +2,15 @@
 FastAPI main application entry point
 """
 import logging
+import os
+
+# Fix OpenMP duplicate library error
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Fix HF_ENDPOINT if it's missing scheme
+if os.environ.get("HF_ENDPOINT") == "hf-mirror.com":
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

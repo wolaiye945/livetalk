@@ -69,5 +69,12 @@ htmlcov/
 .pytest_cache/
 .tox/
 
-# Jupyter
-.ipynb_checkpoints/
+# Config files
+backend/config.yaml
+backend/app/config.yaml
+config.yaml
+*.yaml
+*.yml
+!docker-compose.yml
+!docker-compose.yaml
+

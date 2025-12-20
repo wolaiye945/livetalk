@@ -164,7 +164,11 @@ async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str)
         return
     
     # user_id is stored as string in token, convert to int
-    user_id = int(payload.get("sub"))
+    user_id = int(payload.get("sub")) if payload.get("sub") else None
+    
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
     
     # Verify conversation ownership
     async with async_session_maker() as db:
@@ -238,64 +242,16 @@ async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str)
                     system_prompt=settings.llm.system_prompt
                 )
                 
-                # Stream AI response, filtering out <think> tags
+                # Stream AI response
                 full_response = ""
-                buffer = ""  # Buffer to handle split <think> tags
-                in_think_block = False
                 
                 try:
                     async for chunk in llm_service.chat_stream(llm_messages):
-                        buffer += chunk
-                        
-                        # Check for <think> tag start
-                        while True:
-                            if not in_think_block:
-                                think_start = buffer.find('<think>')
-                                if think_start == -1:
-                                    # No <think> found, but keep last 7 chars in case tag is split
-                                    safe_len = max(0, len(buffer) - 7)
-                                    if safe_len > 0:
-                                        output = buffer[:safe_len]
-                                        buffer = buffer[safe_len:]
-                                        full_response += output
-                                        await manager.send_json({
-                                            "type": "assistant_chunk",
-                                            "content": output
-                                        }, websocket)
-                                    break
-                                else:
-                                    # Output content before <think>
-                                    if think_start > 0:
-                                        output = buffer[:think_start]
-                                        full_response += output
-                                        await manager.send_json({
-                                            "type": "assistant_chunk",
-                                            "content": output
-                                        }, websocket)
-                                    buffer = buffer[think_start:]
-                                    in_think_block = True
-                            
-                            if in_think_block:
-                                think_end = buffer.find('</think>')
-                                if think_end == -1:
-                                    # Still in think block, wait for more
-                                    break
-                                else:
-                                    # End of think block, skip it
-                                    buffer = buffer[think_end + 8:]
-                                    in_think_block = False
-                    
-                    # Flush remaining buffer (if not in think block)
-                    if buffer and not in_think_block:
-                        # Final check for any remaining think tags
-                        import re
-                        clean_buffer = re.sub(r'<think>.*?</think>', '', buffer, flags=re.DOTALL)
-                        if clean_buffer:
-                            full_response += clean_buffer
-                            await manager.send_json({
-                                "type": "assistant_chunk",
-                                "content": clean_buffer
-                            }, websocket)
+                        full_response += chunk
+                        await manager.send_json({
+                            "type": "assistant_chunk",
+                            "content": chunk
+                        }, websocket)
                             
                 except Exception as e:
                     logger.error(f"Streaming failed: {e}")
@@ -304,9 +260,6 @@ async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str)
                         "message": str(e)
                     }, websocket)
                     continue
-                
-                # Clean full response of any remaining think tags
-                full_response = llm_service.strip_think_tags(full_response)
                 
                 # Save assistant message
                 assistant_message = Message(

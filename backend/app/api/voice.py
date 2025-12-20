@@ -60,7 +60,11 @@ async def websocket_voice(websocket: WebSocket, conversation_id: int, token: str
         await websocket.close(code=4001)
         return
     
-    user_id = payload.get("sub")
+    user_id = int(payload.get("sub")) if payload.get("sub") else None
+    
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
     
     # Verify conversation ownership
     async with async_session_maker() as db:
