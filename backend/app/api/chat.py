@@ -3,6 +3,7 @@ Chat API routes - messages and WebSocket
 """
 import json
 import logging
+import base64
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.models.message import Message
 from app.schemas.message import MessageCreate, MessageResponse, ChatRequest, ChatResponse
 from app.services.llm_service import llm_service
 from app.services.context_service import context_service
+from app.services.tts_service import tts_service
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +246,7 @@ async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str)
                 
                 # Stream AI response
                 full_response = ""
+                await manager.send_json({"type": "status", "status": "thinking"}, websocket)
                 
                 try:
                     async for chunk in llm_service.chat_stream(llm_messages):
@@ -282,6 +285,22 @@ async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str)
                         "created_at": assistant_message.created_at.isoformat()
                     }
                 }, websocket)
+
+                # Optional TTS for chat
+                try:
+                    await manager.send_json({"type": "status", "status": "synthesizing"}, websocket)
+                    # Synthesize
+                    audio_data = await tts_service.synthesize(full_response)
+                    audio_base64 = base64.b64encode(audio_data).decode()
+                    
+                    # Send audio
+                    await manager.send_json({
+                        "type": "assistant_audio",
+                        "audio": audio_base64,
+                        "format": "wav"
+                    }, websocket)
+                except Exception as e:
+                    logger.warning(f"TTS failed in chat: {e}")
     
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)

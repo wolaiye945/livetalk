@@ -90,12 +90,41 @@ export default function ChatView() {
         addMessage(data.message);
         fetchConversations();
         break;
+      case 'assistant_audio':
+        playAudio(data.audio);
+        break;
+      case 'status':
+        // We could show this in the UI, but for now just log it
+        console.log('Status update:', data.status);
+        break;
       case 'error':
         console.error('Chat error:', data.message);
         setIsStreaming(false);
         break;
     }
   }, [addMessage, fetchConversations]);
+
+  const playAudio = (base64Audio: string) => {
+    try {
+      const audioBlob = base64ToBlob(base64Audio, 'audio/wav');
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.play().catch(e => console.error('Audio play failed:', e));
+    } catch (error) {
+      console.error('Failed to play audio:', error);
+    }
+  };
+
+  const base64ToBlob = (base64: string, type: string) => {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Blob([bytes], { type });
+  };
 
   // Auto scroll to bottom
   useEffect(() => {
